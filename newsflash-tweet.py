@@ -51,7 +51,7 @@ def get_formatted_news(api_url, headers, params):
 def format_content(title, content, prompt, prefix="💡资讯\n"):
     news_content = f"{title} {content}"
     client = OpenAI(base_url="https://api.gptsapi.net/v1", api_key=OPEN_AI_KEY)
-    response = client.chat.completions.create(model="gpt-4-turbo", messages=[{"role": "system", "content": prompt}, {"role": "user", "content": news_content}])
+    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": prompt}, {"role": "user", "content": news_content}])
     if response.choices:
         formatted_news = prefix + response.choices[0].message.content[:240]
         return formatted_news
