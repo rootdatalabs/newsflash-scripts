@@ -65,7 +65,7 @@ def schedule_tweet(tweet_content, x_api_key=X_API_KEY, x_name="ChainCatcher"):
     }
     response = requests.post("https://api.typefully.com/v1/drafts/", json=payload, headers=headers)
     # print(response.json())
-    return x_name + "推文已成功发布！" if response.status_code == 200 else "推文发布失败。"
+    return x_name + "推文已成功发布！" if response.status_code == 200 else  x_name + "推文发布失败。"
 
 def is_article_id_exists(article_id):
     data = supabase.table("last_article").select("article_id").eq("article_id", article_id).execute()
@@ -117,6 +117,8 @@ def main():
                 print(tweet_content)
                 print(tweet_content_kr)
                 print(schedule_tweet(tweet_content))
+                # wait for 30 seconds before posting the next tweet
+                time.sleep(30)
                 print(schedule_tweet(tweet_content_kr,X_KR_API_KEY, "ChainCatcher KR"))
                 update_last_article_id(article_id)
             else:
