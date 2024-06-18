@@ -136,8 +136,8 @@ def main():
     try:
         title, content, article_url, article_id = get_formatted_news(api_url, headers, params)
 
-        # is_article_exist = is_article_id_exists(article_id)
-        is_article_exist = False
+        is_article_exist = is_article_id_exists(article_id)
+        # is_article_exist = False
 
         if(is_article_exist):
             print(str(article_id) + " Article already exists in the database.")
