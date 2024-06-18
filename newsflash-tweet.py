@@ -58,14 +58,49 @@ def format_content(title, content, prompt, prefix="💡资讯\n"):
     return prefix +"Content formatting failed."
 
 def schedule_tweet(tweet_content, x_api_key=X_API_KEY, x_name="ChainCatcher"):
+
+    typefully_draft_public_url = "https://api.typefully.com/drafts-public/"
     headers = {"X-API-KEY": f"Bearer {x_api_key}", "Content-Type": "application/json"}
     payload = {
         "content": tweet_content,
-        "schedule-date": (datetime.now(pytz.timezone('Asia/Shanghai')) + timedelta(seconds=30)).isoformat()
+        "schedule-date": (datetime.now(pytz.timezone('Asia/Shanghai')) + timedelta(seconds=2)).isoformat(),
+        "share": True
     }
     response = requests.post("https://api.typefully.com/v1/drafts/", json=payload, headers=headers)
     print(response.json())
-    return x_name + "推文已成功发布！" if response.status_code == 200 else  x_name + "推文发布失败。"
+
+    twitter_url = None
+
+    if response.status_code == 200:
+        data = response.json()
+        typefully_id = data.get("id")
+        share_url = data.get("share_url")
+        # Split the URL by '/' and get the last part
+        identifier = share_url.split('/')[-1]
+
+        # Print the identifier
+        # print(identifier)
+        print(f"Draft created successfully. {share_url} {typefully_id}")
+    
+        # 等待一段时间以确保草稿发布
+        print("wait for 60s")
+        time.sleep(60)
+        
+        # 获取最近发布的草稿
+        response = requests.get(typefully_draft_public_url + identifier, headers=headers)
+        print(response.json())
+        
+
+        if response.status_code == 200:
+
+            data = response.json()
+            twitter_url = data.get("thread_head_twitter_url")
+            print(x_name + "推文已成功发布！" + twitter_url)
+    else:
+        print(x_name + "推文发布失败。")
+
+    return twitter_url
+
 
 def is_article_id_exists(article_id):
     data = supabase.table("last_article").select("article_id").eq("article_id", article_id).execute()
@@ -96,13 +131,13 @@ def main():
     headers = {"token": HEADER_TOKEN}
     params = {"type": 2, "newsFlashType": 1, "page": 1, "limit": 1}
     prompt = "请处理以下文本：输入原始文本。首先，从文本中删除任何提到'ChainCatcher消息'的部分。然后，依据标题内容和正文补充信息，将文本内容压缩成不超过70字的摘要，并保持内容用语正式、新闻格调，同时中立和客观。在处理时，请确保将所有与加密货币领域相关的关键词如'比特币'和'ETF'标记为#比特币、#比特币、#ETF、#BTC、#ETH、#SEC、#FTX、#SBF、#爆仓、#灰度、#币安、#Coinbase、#GaryGensler、#OKX、#Solana、#以太坊、#RWA、#AI、#Tether、#赵长鹏、#CZ、#区块链、#加密行业、#萨尔瓦多、#美联储、#元宇宙、#PEOPLE、#PEPE、#融资、#SEI、#Cosmos、#加密资产、#CPI、#何一、#DEX、#CEX、#SOL、#OKB、#BNB、#黑客攻击、#meme、#鲍威尔、#Runes、#符文、#铭文、#Ordinals、#ORDI、#Web3、#慢雾、#Layer2、#孙宇晨、#USDT、#USDC、#TON、#港股、#马斯克、#稳定币等，并在每个标签前加上空格，使这些标签合理地融入到句子中，保持信息流畅且易于理解。"
-    prompt_kr = prompt + "请注意，将最终内容翻译韩文。"
+    prompt_kr = prompt + "请注意，将最终内容必须全部翻译为韩文，相关带有#的关键词标记也必须翻译成韩文。不保留原来总结的中文。最终输出的字符数控制在 100 以内。"
     
     try:
         title, content, article_url, article_id = get_formatted_news(api_url, headers, params)
 
-        is_article_exist = is_article_id_exists(article_id)
-        # is_article_exist = False
+        # is_article_exist = is_article_id_exists(article_id)
+        is_article_exist = False
 
         if(is_article_exist):
             print(str(article_id) + " Article already exists in the database.")
@@ -113,15 +148,19 @@ def main():
             source_link = get_source_link(article_url)
 
             if source_link:
+                twitter_url_cn = None
                 tweet_content = f"{formatted_content}\n\n{source_link if source_link else 'No source link found.'}"
-                tweet_content_kr = f"{formatted_content_kr}\n\n{source_link if source_link else 'No source link found.'}"
                 print(tweet_content)
-                print(tweet_content_kr)
-                print(schedule_tweet(tweet_content))
-                # wait for 10 seconds before posting the next tweet
+                twitter_url_cn = schedule_tweet(tweet_content)
+                # wait for 5 seconds before posting the next tweet
                 print("wait for 5s")
                 time.sleep(5)
-                print(schedule_tweet(tweet_content_kr,X_KR_API_KEY, "ChainCatcher KR"))
+                if twitter_url_cn:
+                    tweet_content_kr = f"{formatted_content_kr}\n\n{twitter_url_cn}"
+                else:
+                    tweet_content_kr = f"{formatted_content_kr}\n\n{source_link}"
+                print(tweet_content_kr)
+                schedule_tweet(tweet_content_kr,X_KR_API_KEY, "ChainCatcher KR")
                 update_last_article_id(article_id)
             else:
                 print("Source link not found.")
