@@ -64,7 +64,7 @@ def schedule_tweet(tweet_content, x_api_key=X_API_KEY, x_name="ChainCatcher"):
         "schedule-date": (datetime.now(pytz.timezone('Asia/Shanghai')) + timedelta(seconds=30)).isoformat()
     }
     response = requests.post("https://api.typefully.com/v1/drafts/", json=payload, headers=headers)
-    # print(response.json())
+    print(response.json())
     return x_name + "推文已成功发布！" if response.status_code == 200 else  x_name + "推文发布失败。"
 
 def is_article_id_exists(article_id):
@@ -102,6 +102,7 @@ def main():
         title, content, article_url, article_id = get_formatted_news(api_url, headers, params)
 
         is_article_exist = is_article_id_exists(article_id)
+        # is_article_exist = False
 
         if(is_article_exist):
             print(str(article_id) + " Article already exists in the database.")
@@ -117,8 +118,9 @@ def main():
                 print(tweet_content)
                 print(tweet_content_kr)
                 print(schedule_tweet(tweet_content))
-                # wait for 30 seconds before posting the next tweet
-                time.sleep(30)
+                # wait for 10 seconds before posting the next tweet
+                print("wait for 5s")
+                time.sleep(5)
                 print(schedule_tweet(tweet_content_kr,X_KR_API_KEY, "ChainCatcher KR"))
                 update_last_article_id(article_id)
             else:
