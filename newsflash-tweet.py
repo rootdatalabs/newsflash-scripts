@@ -57,7 +57,7 @@ def format_content(title, content, prompt, prefix="💡资讯\n"):
         return formatted_news
     return prefix +"Content formatting failed."
 
-def schedule_tweet(tweet_content, x_api_key=X_API_KEY, x_name="ChainCatcher"):
+def schedule_tweet(tweet_content, x_api_key=X_API_KEY, x_name="ChainCatcher", get_twitter_url=False):
 
     typefully_draft_public_url = "https://api.typefully.com/drafts-public/"
     headers = {"X-API-KEY": f"Bearer {x_api_key}", "Content-Type": "application/json"}
@@ -81,21 +81,22 @@ def schedule_tweet(tweet_content, x_api_key=X_API_KEY, x_name="ChainCatcher"):
         # Print the identifier
         # print(identifier)
         print(f"Draft created successfully. {share_url} {typefully_id}")
-    
-        # 等待一段时间以确保草稿发布
-        print("wait for 60s")
-        time.sleep(60)
-        
-        # 获取最近发布的草稿
-        response = requests.get(typefully_draft_public_url + identifier, headers=headers)
-        print(response.json())
-        
 
-        if response.status_code == 200:
+        if get_twitter_url:
+            # 等待一段时间以确保草稿发布
+            print("wait for 60s")
+            time.sleep(60)
+            
+            # 获取最近发布的草稿
+            response = requests.get(typefully_draft_public_url + identifier, headers=headers)
+            print(response.json())
+            
 
-            data = response.json()
-            twitter_url = data.get("thread_head_twitter_url")
-            print(x_name + "推文已成功发布！" + twitter_url)
+            if response.status_code == 200:
+
+                data = response.json()
+                twitter_url = data.get("thread_head_twitter_url")
+                print(x_name + "推文已成功发布！" + twitter_url)
     else:
         print(x_name + "推文发布失败。")
 
@@ -106,8 +107,8 @@ def is_article_id_exists(article_id):
     data = supabase.table("last_article").select("article_id").eq("article_id", article_id).execute()
     return len(data.data) > 0
 
-def update_last_article_id(article_id):
-    supabase.table("last_article").insert({"article_id": article_id}).execute()
+def update_last_article_id(article_id, title=""):
+    supabase.table("last_article").insert({"article_id": article_id, "title": title}).execute()
 
 
 def main():
@@ -139,6 +140,9 @@ def main():
         is_article_exist = is_article_id_exists(article_id)
         # is_article_exist = False
 
+        print("Article ID:", article_id, "\ntitle:", title, "\ncontent:", content, "\narticle_url:", article_url, "\nis_article_exist:", is_article_exist)
+
+
         if(is_article_exist):
             print(str(article_id) + " Article already exists in the database.")
 
@@ -160,8 +164,9 @@ def main():
                 else:
                     tweet_content_kr = f"{formatted_content_kr}\n\n{source_link}"
                 print(tweet_content_kr)
+                # post kr tweet
                 schedule_tweet(tweet_content_kr,X_KR_API_KEY, "ChainCatcher KR")
-                update_last_article_id(article_id)
+                update_last_article_id(article_id, title)
             else:
                 print("Source link not found.")
         else:
