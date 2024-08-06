@@ -131,7 +131,7 @@ def main():
     api_url = "https://www.chaincatcher.com/OpenApi/FetchListByType"
     headers = {"token": HEADER_TOKEN}
     params = {"type": 2, "newsFlashType": 1, "page": 1, "limit": 1}
-    prompt = "请处理以下文本：输入原始文本。首先，从文本中删除任何提到'ChainCatcher消息'的部分。然后，依据标题内容和正文补充信息，将文本内容压缩成不超过70字的摘要，并保持内容用语正式、新闻格调，同时中立和客观。在处理时，请确保将所有与加密货币领域相关的关键词如'比特币'和'ETF'标记为#比特币、#比特币、#ETF、#BTC、#ETH、#SEC、#FTX、#SBF、#爆仓、#灰度、#币安、#Coinbase、#GaryGensler、#OKX、#Solana、#以太坊、#RWA、#AI、#Tether、#赵长鹏、#CZ、#区块链、#加密行业、#萨尔瓦多、#美联储、#元宇宙、#PEOPLE、#PEPE、#融资、#SEI、#Cosmos、#加密资产、#CPI、#何一、#DEX、#CEX、#SOL、#OKB、#BNB、#黑客攻击、#meme、#鲍威尔、#Runes、#符文、#铭文、#Ordinals、#ORDI、#Web3、#慢雾、#Layer2、#孙宇晨、#USDT、#USDC、#TON、#港股、#马斯克、#稳定币等，并在每个标签前加上空格，使这些标签合理地融入到句子中，保持信息流畅且易于理解。"
+    prompt = "请处理以下文本：输入原始文本。首先，从文本中删除任何提到'ChainCatcher消息'的部分。然后，依据标题内容和正文补充信息，将文本内容压缩成不超过70字的摘要，不要包含html标签，并保持内容用语正式、新闻格调，同时中立和客观。在处理时，请确保将所有与加密货币领域相关的关键词如'比特币'和'ETF'标记为#比特币、#比特币、#ETF、#BTC、#ETH、#SEC、#FTX、#SBF、#爆仓、#灰度、#币安、#Coinbase、#GaryGensler、#OKX、#Solana、#以太坊、#RWA、#AI、#Tether、#赵长鹏、#CZ、#区块链、#加密行业、#萨尔瓦多、#美联储、#元宇宙、#PEOPLE、#PEPE、#融资、#SEI、#Cosmos、#加密资产、#CPI、#何一、#DEX、#CEX、#SOL、#OKB、#BNB、#黑客攻击、#meme、#鲍威尔、#Runes、#符文、#铭文、#Ordinals、#ORDI、#Web3、#慢雾、#Layer2、#孙宇晨、#USDT、#USDC、#TON、#港股、#马斯克、#稳定币等，并在每个标签前加上空格，使这些标签合理地融入到句子中，保持信息流畅且易于理解。"
     prompt_kr = prompt + "请注意，将最终内容必须全部翻译为韩文，相关带有#的关键词标记也必须翻译成韩文。不保留原来总结的中文。最终输出的字符数控制在 100 以内。"
     
     try:
