@@ -57,7 +57,7 @@ def format_content(title, content, prompt, prefix="💡资讯\n"):
         return formatted_news
     return prefix +"Content formatting failed."
 
-def schedule_tweet(tweet_content, x_api_key=X_API_KEY, x_name="ChainCatcher", get_twitter_url=False):
+def schedule_tweet(tweet_content, x_api_key="27VgCEflgFqnrJvA", x_name="ChainCatcher", get_twitter_url=False):
 
     typefully_draft_public_url = "https://api.typefully.com/drafts-public/"
     headers = {"X-API-KEY": f"Bearer {x_api_key}", "Content-Type": "application/json"}
