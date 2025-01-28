@@ -155,7 +155,7 @@ def main():
                 twitter_url_cn = None
                 tweet_content = f"{formatted_content}\n\n{source_link if source_link else 'No source link found.'}"
                 print(tweet_content)
-                #twitter_url_cn = schedule_tweet(tweet_content)
+                twitter_url_cn = schedule_tweet(tweet_content)
                 # wait for 5 seconds before posting the next tweet
                 print("wait for 5s")
                 time.sleep(5)
