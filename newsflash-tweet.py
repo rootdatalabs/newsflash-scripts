@@ -7,7 +7,8 @@ from openai import OpenAI
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import os
-
+import socket
+import traceback
 
 if "GITHUB_ACTIONS" not in os.environ:
     load_dotenv()
@@ -20,114 +21,333 @@ X_KR_API_KEY = os.getenv("X_KR_API_KEY")
 OPEN_AI_KEY = os.getenv("OPEN_AI_KEY")
 HEADER_TOKEN = os.getenv("HEADER_TOKEN")
 
-
-
 # init supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_source_link(article_url):
+    print(f"\n=== 开始获取源链接 ===")
+    print(f"文章URL: {article_url}")
+    
     try:
-        response = requests.get(article_url)
+        print("发送HTTP请求...")
+        start_time = time.time()
+        response = requests.get(article_url, timeout=30)
+        end_time = time.time()
+        print(f"请求完成，耗时: {end_time - start_time:.2f}秒")
+        print(f"状态码: {response.status_code}")
+        
         response.raise_for_status()
+        
+        print("解析HTML内容...")
         soup = BeautifulSoup(response.text, 'html.parser')
-        source_link_tag = soup.find('div', class_="rich_text_content mb-4").find('a', string='(来源链接)')
+        
+        print("查找来源链接标签...")
+        source_link_tag = soup.find('div', class_="rich_text_content mb-4")
         if source_link_tag:
-            return source_link_tag['href']
+            print("找到内容div")
+            link_tag = source_link_tag.find('a', string='(来源链接)')
+            if link_tag:
+                source_link = link_tag['href']
+                print(f"找到源链接: {source_link}")
+                return source_link
+            else:
+                print("未找到(来源链接)标签")
+        else:
+            print("未找到rich_text_content div")
+            
     except requests.RequestException as e:
-        print("Failed to retrieve source link:", e)
-    except AttributeError:
-        print("Source link not found in the expected section.")
+        print(f"请求异常: {str(e)}")
+        traceback.print_exc()
+    except AttributeError as e:
+        print(f"解析异常: {str(e)}")
+        traceback.print_exc()
+    except Exception as e:
+        print(f"其他异常: {str(e)}")
+        traceback.print_exc()
+        
+    print("未能获取源链接")
     return None
 
 def get_formatted_news(api_url, headers, params):
-    response = requests.post(api_url, headers=headers, json=params)
-    if response.status_code == 200 and response.json().get('result') == 1:
-        article = response.json()['data']['list'][0]
-        if article:
-            title, content, article_url, article_id = article['title'], article['content'], article['url'], article['id']
-            return title, content, article_url, article_id
+    print(f"\n=== 开始获取新闻 ===")
+    print(f"API URL: {api_url}")
+    print(f"请求头: {headers}")
+    print(f"请求参数: {params}")
+    
+    try:
+        # 先测试域名解析
+        domain = api_url.split("//")[1].split("/")[0]
+        print(f"尝试解析域名: {domain}...")
+        try:
+            ip = socket.gethostbyname(domain)
+            print(f"域名解析成功! IP: {ip}")
+        except socket.gaierror as e:
+            print(f"域名解析失败: {str(e)}")
+            return None, None, None, None
+        
+        # 发送API请求
+        print("发送POST请求...")
+        start_time = time.time()
+        response = requests.post(api_url, headers=headers, json=params, timeout=30)
+        end_time = time.time()
+        print(f"请求完成，耗时: {end_time - start_time:.2f}秒")
+        print(f"状态码: {response.status_code}")
+        
+        # 检查响应
+        if response.status_code == 200:
+            print("解析响应JSON...")
+            try:
+                response_json = response.json()
+                print(f"响应结果: {response_json.get('result')}")
+                
+                if response_json.get('result') == 1:
+                    article = response_json['data']['list'][0]
+                    if article:
+                        title = article['title']
+                        content = article['content']
+                        article_url = article['url']
+                        article_id = article['id']
+                        
+                        print(f"成功获取新闻:")
+                        print(f"- ID: {article_id}")
+                        print(f"- 标题: {title}")
+                        print(f"- 内容前50字符: {content[:50]}...")
+                        print(f"- URL: {article_url}")
+                        
+                        return title, content, article_url, article_id
+                    else:
+                        print("未找到文章内容")
+                else:
+                    print(f"API返回错误结果: {response_json}")
+            except Exception as e:
+                print(f"JSON解析错误: {str(e)}")
+                print(f"原始响应: {response.text[:500]}...")
+        else:
+            print(f"API请求失败，状态码: {response.status_code}")
+            print(f"响应内容: {response.text[:500]}...")
+    
+    except requests.exceptions.ConnectionError as e:
+        print(f"连接错误: {str(e)}")
+        traceback.print_exc()
+    except requests.exceptions.Timeout as e:
+        print(f"请求超时: {str(e)}")
+    except Exception as e:
+        print(f"其他异常: {str(e)}")
+        traceback.print_exc()
+    
+    print("未能获取格式化新闻")
     return None, None, None, None
 
 def format_content(title, content, prompt, prefix="💡资讯\n"):
+    print(f"\n=== 开始格式化内容 ===")
+    print(f"标题: {title}")
+    print(f"内容前50字符: {content[:50]}...")
+    
     news_content = f"{title} {content}"
-    client = OpenAI(base_url="https://api.gptsapi.net/v1", api_key=OPEN_AI_KEY)
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": prompt}, {"role": "user", "content": news_content}])
-    if response.choices:
-        formatted_news = prefix + response.choices[0].message.content[:240]
-        return formatted_news
-    return prefix +"Content formatting failed."
+    
+    try:
+        print("调用OpenAI API...")
+        start_time = time.time()
+        client = OpenAI(base_url="https://api.gptsapi.net/v1", api_key=OPEN_AI_KEY)
+        
+        # 先测试域名解析
+        domain = "api.gptsapi.net"
+        print(f"尝试解析域名: {domain}...")
+        try:
+            ip = socket.gethostbyname(domain)
+            print(f"域名解析成功! IP: {ip}")
+        except socket.gaierror as e:
+            print(f"域名解析失败: {str(e)}")
+            return prefix + "域名解析失败，无法格式化内容。"
+        
+        response = client.chat.completions.create(
+            model="gpt-4o", 
+            messages=[
+                {"role": "system", "content": prompt}, 
+                {"role": "user", "content": news_content}
+            ]
+        )
+        end_time = time.time()
+        print(f"API调用完成，耗时: {end_time - start_time:.2f}秒")
+        
+        if response.choices:
+            formatted_news = prefix + response.choices[0].message.content[:240]
+            print(f"格式化结果: {formatted_news}")
+            return formatted_news
+        else:
+            print("API未返回有效内容")
+    except Exception as e:
+        print(f"格式化异常: {str(e)}")
+        traceback.print_exc()
+    
+    print("使用备用格式化内容")
+    return prefix + "Content formatting failed."
 
 def schedule_tweet(tweet_content, x_api_key="27VgCEflgFqnrJvA", x_name="ChainCatcher", get_twitter_url=False):
-
+    print(f"\n=== 开始发布 {x_name} 推文 ===")
+    print(f"推文内容长度: {len(tweet_content)} 字符")
+    print(f"推文内容: {tweet_content}")
+    
     typefully_draft_public_url = "https://api.typefully.com/drafts-public/"
-    headers = {"X-API-KEY": f"Bearer {x_api_key}", "Content-Type": "application/json"}
-    payload = {
-        "content": tweet_content,
-        "schedule-date": (datetime.now(pytz.timezone('Asia/Shanghai')) + timedelta(seconds=2)).isoformat(),
-        "share": True
-    }
-    response = requests.post("https://api.typefully.com/v1/drafts/", json=payload, headers=headers)
-    print(response.json())
-
-    twitter_url = None
-
-    if response.status_code == 200:
-        data = response.json()
-        typefully_id = data.get("id")
-        share_url = data.get("share_url")
-        # Split the URL by '/' and get the last part
-        identifier = share_url.split('/')[-1]
-
-        # Print the identifier
-        # print(identifier)
-        print(f"Draft created successfully. {share_url} {typefully_id}")
-
-        if get_twitter_url:
-            # 等待一段时间以确保草稿发布
-            print("wait for 60s")
-            time.sleep(60)
+    
+    try:
+        # 先测试域名解析
+        domain = "api.typefully.com"
+        print(f"尝试解析域名: {domain}...")
+        try:
+            ip = socket.gethostbyname(domain)
+            print(f"域名解析成功! IP: {ip}")
+        except socket.gaierror as e:
+            print(f"域名解析失败: {str(e)}")
+            return None
+        
+        headers = {"X-API-KEY": f"Bearer {x_api_key}", "Content-Type": "application/json"}
+        payload = {
+            "content": tweet_content,
+            "schedule-date": (datetime.now(pytz.timezone('Asia/Shanghai')) + timedelta(seconds=2)).isoformat(),
+            "share": True
+        }
+        
+        print(f"请求头: {headers}")
+        print(f"请求体: {payload}")
+        
+        print("发送POST请求到Typefully...")
+        start_time = time.time()
+        response = requests.post("https://api.typefully.com/v1/drafts/", json=payload, headers=headers)
+        end_time = time.time()
+        print(f"请求完成，耗时: {end_time - start_time:.2f}秒")
+        print(f"状态码: {response.status_code}")
+        
+        try:
+            response_json = response.json()
+            print(f"响应JSON: {response_json}")
             
-            # 获取最近发布的草稿
-            response = requests.get(typefully_draft_public_url + identifier, headers=headers)
-            print(response.json())
+            twitter_url = None
             
-
             if response.status_code == 200:
-
-                data = response.json()
-                twitter_url = data.get("thread_head_twitter_url")
-                print(x_name + "推文已成功发布！" + twitter_url)
-    else:
-        print(x_name + "推文发布失败。")
-
-    return twitter_url
-
+                data = response_json
+                typefully_id = data.get("id")
+                share_url = data.get("share_url")
+                
+                if share_url:
+                    # Split the URL by '/' and get the last part
+                    identifier = share_url.split('/')[-1]
+                    print(f"草稿创建成功! ID: {typefully_id}, 标识符: {identifier}")
+                    print(f"分享URL: {share_url}")
+                    
+                    if get_twitter_url:
+                        # 等待一段时间以确保草稿发布
+                        print("等待60秒以确保草稿发布...")
+                        time.sleep(60)
+                        
+                        # 获取最近发布的草稿
+                        print(f"检查草稿发布状态: {typefully_draft_public_url + identifier}")
+                        check_response = requests.get(typefully_draft_public_url + identifier, headers=headers)
+                        print(f"检查响应状态码: {check_response.status_code}")
+                        
+                        if check_response.status_code == 200:
+                            check_data = check_response.json()
+                            print(f"检查响应JSON: {check_data}")
+                            
+                            twitter_url = check_data.get("thread_head_twitter_url")
+                            if twitter_url:
+                                print(f"{x_name} 推文已成功发布! URL: {twitter_url}")
+                            else:
+                                print("未找到Twitter URL，可能尚未发布")
+                        else:
+                            print(f"检查草稿状态失败: {check_response.text}")
+                else:
+                    print("响应中未包含share_url")
+            else:
+                print(f"{x_name} 推文发布失败，状态码: {response.status_code}")
+                print(f"错误信息: {response_json}")
+                
+            return twitter_url
+        
+        except ValueError as e:
+            print(f"JSON解析错误: {str(e)}")
+            print(f"原始响应: {response.text}")
+    
+    except Exception as e:
+        print(f"发布推文异常: {str(e)}")
+        traceback.print_exc()
+    
+    print(f"{x_name} 推文发布失败")
+    return None
 
 def is_article_id_exists(article_id):
-    data = supabase.table("last_article").select("article_id").eq("article_id", article_id).execute()
-    return len(data.data) > 0
+    print(f"\n=== 检查文章ID是否存在 ===")
+    print(f"文章ID: {article_id}")
+    
+    try:
+        print("查询数据库...")
+        data = supabase.table("last_article").select("article_id").eq("article_id", article_id).execute()
+        exists = len(data.data) > 0
+        print(f"文章ID存在: {exists}")
+        return exists
+    except Exception as e:
+        print(f"数据库查询异常: {str(e)}")
+        traceback.print_exc()
+        return False
 
 def update_last_article_id(article_id, title=""):
-    supabase.table("last_article").insert({"article_id": article_id, "title": title}).execute()
-
+    print(f"\n=== 更新最新文章ID ===")
+    print(f"文章ID: {article_id}")
+    print(f"标题: {title}")
+    
+    try:
+        print("插入数据库...")
+        result = supabase.table("last_article").insert({"article_id": article_id, "title": title}).execute()
+        print(f"插入成功: {result}")
+        return True
+    except Exception as e:
+        print(f"数据库插入异常: {str(e)}")
+        traceback.print_exc()
+        return False
 
 def main():
     """
     Fetches news articles from an API, processes the content, and schedules a tweet.
-
+    
     This function performs the following steps:
     1. Fetches news articles from the specified API endpoint.
     2. Checks if the article already exists in the database.
     3. If the article is new, formats the content and generates a tweet.
     4. Schedules the tweet for posting.
     5. Updates the last article ID in the database.
-
-    Returns:
-        None
-
-    Raises:
-        None
     """
+    print("\n============= 脚本开始执行 =============")
+    print(f"当前时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("\n=== 测试关键域名解析 ===")
+    
+    domains = [
+        "www.chaincatcher.com",
+        "api.gptsapi.net",
+        "api.typefully.com"
+    ]
+    
+    for domain in domains:
+        try:
+            print(f"尝试解析域名: {domain}...")
+            ip = socket.gethostbyname(domain)
+            print(f"域名解析成功! IP: {ip}")
+            
+            # 测试HTTP连接
+            protocol = "https"
+            print(f"尝试连接: {protocol}://{domain}...")
+            start_time = time.time()
+            response = requests.get(f"{protocol}://{domain}", timeout=10)
+            end_time = time.time()
+            print(f"连接成功! 状态码: {response.status_code}, 耗时: {end_time - start_time:.2f}秒")
+        except socket.gaierror as e:
+            print(f"域名解析失败: {str(e)}")
+        except requests.exceptions.ConnectionError as e:
+            print(f"连接错误: {str(e)}")
+        except requests.exceptions.Timeout as e:
+            print(f"连接超时: {str(e)}")
+        except Exception as e:
+            print(f"测试失败: {str(e)}")
+    
     api_url = "https://www.chaincatcher.com/OpenApi/FetchListByType"
     headers = {"token": HEADER_TOKEN}
     params = {"type": 2, "newsFlashType": 1, "page": 1, "limit": 1}
@@ -135,46 +355,69 @@ def main():
     prompt_kr = prompt + "请注意，将最终内容必须全部翻译为韩文，相关带有#的关键词标记也必须翻译成韩文。不保留原来总结的中文。最终输出的字符数控制在 100 以内。"
     
     try:
+        print("\n=== 开始主要业务流程 ===")
+        print(f"HEADER_TOKEN 设置状态: {'已设置' if HEADER_TOKEN else '未设置'}")
+        
+        # 获取新闻内容
         title, content, article_url, article_id = get_formatted_news(api_url, headers, params)
-
-        is_article_exist = is_article_id_exists(article_id)
-        # is_article_exist = False
-
-        print("Article ID:", article_id, "\ntitle:", title, "\ncontent:", content, "\narticle_url:", article_url, "\nis_article_exist:", is_article_exist)
-
-
-        if(is_article_exist):
-            print(str(article_id) + " Article already exists in the database.")
-
+        
+        # 检查文章是否存在
+        is_article_exist = is_article_id_exists(article_id) if article_id else True
+        
+        print(f"\n=== 新闻获取结果 ===")
+        print(f"文章ID: {article_id}")
+        print(f"标题: {title}")
+        print(f"内容前100字符: {content[:100] if content else None}")
+        print(f"文章URL: {article_url}")
+        print(f"文章已存在: {is_article_exist}")
+        
+        if is_article_exist:
+            print(f"文章ID {article_id} 已存在于数据库中，跳过处理。")
+        
         if title and content and article_url and not is_article_exist:
+            # 格式化内容
             formatted_content = format_content(title, content, prompt)
             formatted_content_kr = format_content(title, content, prompt_kr, "💡뉴스\n")
+            
+            # 获取源链接
             source_link = get_source_link(article_url)
-
+            
             if source_link:
+                print("\n=== 准备发布推文 ===")
                 twitter_url_cn = None
                 tweet_content = f"{formatted_content}\n\n{source_link if source_link else 'No source link found.'}"
-                print(tweet_content)
+                
+                # 发布中文推文
                 twitter_url_cn = schedule_tweet(tweet_content)
-                # wait for 5 seconds before posting the next tweet
-                print("wait for 5s")
+                
+                # 等待一段时间
+                print("等待5秒后发布韩文推文...")
                 time.sleep(5)
+                
+                # 准备韩文推文内容
                 if twitter_url_cn:
                     tweet_content_kr = f"{formatted_content_kr}\n\n{twitter_url_cn}"
                 else:
                     tweet_content_kr = f"{formatted_content_kr}\n\n{source_link}"
-                print(tweet_content_kr)
-                # post kr tweet
-                schedule_tweet(tweet_content_kr,X_KR_API_KEY, "ChainCatcher KR")
+                
+                # 发布韩文推文
+                schedule_tweet(tweet_content_kr, X_KR_API_KEY, "ChainCatcher KR")
+                
+                # 更新数据库
                 update_last_article_id(article_id, title)
+                print("新文章处理完成")
             else:
-                print("Source link not found.")
+                print("未找到源链接，无法发布推文")
         else:
-            print("No new content to process or error fetching data.")
+            if not title or not content or not article_url:
+                print("API未返回有效内容，无法处理")
+            elif is_article_exist:
+                print("文章已存在，无需处理")
     except Exception as e:
-        print("An error occurred:", e)
+        print(f"\n=== 发生错误 ===\n{str(e)}")
+        traceback.print_exc()
     finally:
-        print("Execution completed.")
+        print("\n============= 脚本执行完毕 =============")
 
 if __name__ == "__main__":
     main()
