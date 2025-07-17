@@ -3,7 +3,6 @@ from bs4 import BeautifulSoup
 import time
 from datetime import datetime, timedelta
 import pytz
-from openai import OpenAI
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import os
@@ -149,15 +148,14 @@ def format_content(title, content, prompt, prefix="💡资讯\n"):
         print("调用OpenRouter API...")
         start_time = time.time()
         
-        # 设置默认请求头
-        client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key="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",
-            default_headers={
-                "HTTP-Referer": "https://chaincatcher.com",
-                "X-Title": "ChainCatcher"
-            }
-        )
+        # 创建headers，正确设置Authorization
+        headers = {
+            "Authorization": "Bearer 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",
+            "Content-Type": "application/json"
+        }
+        
+        # 使用requests直接调用API而不是OpenAI客户端
+        api_url = "https://openrouter.ai/api/v1/chat/completions"
         
         # 先测试域名解析
         domain = "openrouter.ai"
@@ -169,23 +167,36 @@ def format_content(title, content, prompt, prefix="💡资讯\n"):
             print(f"域名解析失败: {str(e)}")
             return prefix + "域名解析失败，无法格式化内容。"
         
-        response = client.chat.completions.create(
-            model="openai/gpt-4o-mini", 
-            messages=[
-                {"role": "system", "content": prompt}, 
+        # 准备请求数据
+        payload = {
+            "model": "openai/gpt-4o-mini",
+            "messages": [
+                {"role": "system", "content": prompt},
                 {"role": "user", "content": news_content}
             ],
-            temperature=0.7
-        )
+            "temperature": 0.7
+        }
+        
+        # 发送请求
+        print(f"发送POST请求到: {api_url}")
+        response = requests.post(api_url, headers=headers, json=payload, timeout=30)
         end_time = time.time()
         print(f"API调用完成，耗时: {end_time - start_time:.2f}秒")
+        print(f"状态码: {response.status_code}")
         
-        if response.choices:
-            formatted_news = prefix + response.choices[0].message.content[:240]
-            print(f"格式化结果: {formatted_news}")
-            return formatted_news
+        # 检查响应
+        if response.status_code == 200:
+            response_data = response.json()
+            if "choices" in response_data and len(response_data["choices"]) > 0:
+                formatted_news = prefix + response_data["choices"][0]["message"]["content"][:240]
+                print(f"格式化结果: {formatted_news}")
+                return formatted_news
+            else:
+                print("API响应缺少choices字段")
+                print(f"响应内容: {response_data}")
         else:
-            print("API未返回有效内容")
+            print(f"API请求失败: {response.status_code}")
+            print(f"错误响应: {response.text}")
     except Exception as e:
         print(f"格式化异常: {str(e)}")
         traceback.print_exc()
