@@ -149,14 +149,18 @@ def format_content(title, content, prompt, prefix="💡资讯\n"):
         print("调用OpenRouter API...")
         start_time = time.time()
         
-        # 替换为OpenRouter API
+        # 设置默认请求头
         client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
-            api_key="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"  # 使用您的OpenRouter API密钥
+            api_key="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",
+            default_headers={
+                "HTTP-Referer": "https://chaincatcher.com",
+                "X-Title": "ChainCatcher"
+            }
         )
         
         # 先测试域名解析
-        domain = "openrouter.ai"  # 更新域名
+        domain = "openrouter.ai"
         print(f"尝试解析域名: {domain}...")
         try:
             ip = socket.gethostbyname(domain)
@@ -166,16 +170,12 @@ def format_content(title, content, prompt, prefix="💡资讯\n"):
             return prefix + "域名解析失败，无法格式化内容。"
         
         response = client.chat.completions.create(
-            model="openai/gpt-4o-mini",  # 更新为OpenRouter的模型名称格式
+            model="openai/gpt-4o-mini", 
             messages=[
                 {"role": "system", "content": prompt}, 
                 {"role": "user", "content": news_content}
             ],
-            temperature=0.7,
-            headers={
-                "HTTP-Referer": "https://chaincatcher.com",  # 可选：您的网站URL
-                "X-Title": "ChainCatcher"  # 可选：您的应用名称
-            }
+            temperature=0.7
         )
         end_time = time.time()
         print(f"API调用完成，耗时: {end_time - start_time:.2f}秒")
@@ -332,7 +332,7 @@ def main():
     
     domains = [
         "www.chaincatcher.com",
-        "api.gptsapi.net",
+        "openrouter.ai",
         "api.typefully.com"
     ]
     
