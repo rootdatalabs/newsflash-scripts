@@ -150,7 +150,7 @@ def format_content(title, content, prompt, prefix="💡资讯\n"):
         
         # 创建headers，正确设置Authorization
         headers = {
-            "Authorization": "Bearer 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",
+            "Authorization": "Bearer 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",
             "Content-Type": "application/json"
         }
         
